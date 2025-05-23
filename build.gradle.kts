@@ -8,7 +8,7 @@ plugins {
 
 sonar {
     properties {
-        property("sonar.projectKey", "android-kotlin")
-        property("sonar.projectName", "android-kotlin")
+        property("sonar.projectKey", "JetNews")
+        property("sonar.projectName", "JetNews")
     }
 }
