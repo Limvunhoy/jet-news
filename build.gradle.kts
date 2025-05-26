@@ -9,6 +9,7 @@ plugins {
 sonar {
     properties {
         property("sonar.projectKey", "JetNews")
+        property("sonar.host.url", "https://dev-sonarqube.wingecosys.com")
         property("sonar.projectName", "JetNews")
     }
 }
