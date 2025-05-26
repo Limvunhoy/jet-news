@@ -10,7 +10,6 @@ sonar {
     properties {
         property("sonar.projectKey", "JetNews")
         property("sonar.host.url", "https://dev-sonarqube.wingecosys.com")
-        property("sonar.token", "sqp_274995f18c1d9be7020faf4e44e8c81b2962fd57")
         property("sonar.projectName", "JetNews")
         property("sonar.findbugs.allowuncompiledcode", true)
     }
