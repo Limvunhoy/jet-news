@@ -1,7 +1,7 @@
 package com.example.jetnews.ui.home
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,19 +14,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -34,28 +31,30 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
-import androidx.navigation.NavDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import com.example.jetnews.ui.theme.JetNewsTheme
 import androidx.navigation.compose.composable
+import com.example.jetnews.model.HomeUiState
+import com.example.jetnews.model.Post
 import com.example.jetnews.ui.detail.PostDetailScreen
+import com.example.jetnews.viewmodels.HomeViewModel
+import androidx.compose.runtime.getValue
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.jetnews.util.common.AppTopBar
 
 enum class JetNewsDestination() {
     Home,
@@ -64,16 +63,20 @@ enum class JetNewsDestination() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier) {
+fun HomeScreen(
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = hiltViewModel()
+) {
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(topAppBarState)
     val navController: NavHostController = rememberNavController()
 
     Scaffold(
         topBar = {
-            TopAppBar(modifier = modifier, onClick = {
-//                navController.navigate(JetNewsDestination.Detail.name)
-            })
+//            TopAppBar(modifier = modifier, onClick = {
+////                navController.navigate(JetNewsDestination.Detail.name)
+//            })
+            AppTopBar(title = "JetNews", navController)
         }, modifier = modifier
     ) { innerPadding ->
         val contentModifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
@@ -83,14 +86,14 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             navController = navController,
             startDestination = JetNewsDestination.Home.name,
         ) {
-            composable(route = JetNewsDestination.Home.name) {
+            composable(JetNewsDestination.Home.name) {
+                val state by viewModel.uiState.collectAsState()
+
                 HomeView(
+                    state = state,
+                    onPostItemClick = { navController.navigate(JetNewsDestination.Detail.name) },
+                    onFavoriteToggle = { viewModel.toggleFavorite(it) },
                     contentPadding = innerPadding,
-                    modifier = contentModifier
-                        .fillMaxHeight(),
-                    onPostItemClick = {
-                        println("onTap post item at index: $it")
-                    }
                 )
             }
 
@@ -129,68 +132,71 @@ fun TopAppBar(modifier: Modifier = Modifier, onClick: () -> Unit) {
 
 @Composable
 fun HomeView(
-    modifier: Modifier = Modifier,
+//    state: LazyListState = rememberLazyListState(),
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    state: LazyListState = rememberLazyListState(),
+    state: HomeUiState,
     onPostItemClick: (Int) -> Unit,
-    ) {
+    onFavoriteToggle: (Int) -> Unit,
+) {
     val localConfig = LocalConfiguration.current
     val screenHeight = localConfig.screenHeightDp.dp
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = contentPadding,
-        state = state,
-    ) {
+    if (state.isLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    LazyColumn(contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         item {
             PostCardTopSection()
         }
-        item {
-            for (i in 1..3) {
-                PostList(
-                    modifier = Modifier
-                        .clickable {
-                            onPostItemClick(i)
-                        }
-                )
-                PostListDivider()
-            }
+
+        items(state.posts) { post ->
+            PostListItem(
+                post = post,
+                onClick = {
+                    onPostItemClick(post.id)
+                },
+                onFavoriteToggle = {
+                    onFavoriteToggle(post.id)
+                },
+            )
+            PostListDivider()
         }
     }
 }
 
 @Composable
-fun PostList(modifier: Modifier = Modifier) {
-    Row(modifier = modifier) {
+fun PostListItem(
+    post: Post,
+    onClick: () -> Unit,
+    onFavoriteToggle: () -> Unit
+) {
+    Row(modifier = Modifier
+        .clickable { onClick() }
+        .padding(16.dp)) {
+
         Card(
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            ), shape = RoundedCornerShape(8.dp), modifier = Modifier
-                .padding(16.dp)
-                .size(
-                    width = 50.dp,
-                    height = 35.dp,
-                )
-        ) { }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(vertical = 12.dp)
-        ) {
-            Text("A Little Thing about Android Module Paths", style = MaterialTheme.typography.titleMedium,
-                maxLines = 3, 
-                overflow = TextOverflow.Ellipsis,
-                )
-            Text("Pietro Maggi - 1 min read", style = MaterialTheme.typography.bodyMedium)
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.size(width = 50.dp, height = 35.dp)
+        ) {}
+
+        Column(modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 16.dp)) {
+            Text(post.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("${post.author} - ${post.date}", style = MaterialTheme.typography.bodySmall)
         }
+
         IconToggleButton(
-            checked = false,
-            onCheckedChange = {},
-            modifier = Modifier
-                .clearAndSetSemantics { }
-                .padding(vertical = 2.dp, horizontal = 6.dp)) {
+            checked = post.isFavorite,
+            onCheckedChange = { onFavoriteToggle() }
+        ) {
             Icon(
-                imageVector = Icons.Filled.FavoriteBorder, contentDescription = null
+                imageVector = if (post.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = null
             )
         }
     }
@@ -261,7 +267,9 @@ fun GapWidth(modifier: Modifier = Modifier, width: Int = 16) {
 private fun HomeScreenPreview() {
     JetNewsTheme {
         HomeView(
-            onPostItemClick = {}
+            state = HomeUiState(),
+            onPostItemClick = {},
+            onFavoriteToggle = {}
         )
     }
 }
